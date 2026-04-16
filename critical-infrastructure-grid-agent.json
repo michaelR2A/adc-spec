@@ -1,0 +1,195 @@
+{
+  "adc_version": "0.1",
+  "contract_id": "urn:adc:example:grid-monitoring-agent:2026-04-16:v1",
+
+  "contract_meta": {
+    "issued_at": "2026-04-16T00:00:00Z",
+    "expires_at": "2027-04-16T00:00:00Z",
+    "authored_by": "ops-security@utility.example",
+    "description": "Governs an autonomous grid monitoring and response agent operating in a segmented OT environment. Agent operates with full authority under connected conditions. Under disconnected conditions (network segmentation, communication failure, or contested state), agent operates within a pre-authorized envelope limited to protective actions only. Designed for electric utility substation environments.",
+    "labels": {
+      "vertical": "critical-infrastructure",
+      "pattern": "disconnected-operations",
+      "environment": "ot-production",
+      "profile": "working-draft"
+    }
+  },
+
+  "agent": {
+    "agent_id": "grid-monitor-substation-047",
+    "agent_type": "autonomous_system",
+    "agent_version": "3.1.4"
+  },
+
+  "principal": {
+    "principal_id": "grid-operations-center",
+    "principal_type": "organization",
+    "delegation_depth": 0
+  },
+
+  "authority": {
+    "data_access": [
+      {
+        "domain": "scada.substation_047.*",
+        "classification_ceiling": "restricted",
+        "operations": ["read", "write"]
+      },
+      {
+        "domain": "grid.topology.regional",
+        "classification_ceiling": "confidential",
+        "operations": ["read"]
+      },
+      {
+        "domain": "grid.event_log",
+        "classification_ceiling": "restricted",
+        "operations": ["read", "write"]
+      }
+    ],
+
+    "tools": [
+      {
+        "tool_id": "scada.circuit_breaker_control",
+        "permitted_actions": ["open", "close", "lockout"],
+        "conditions": [
+          {
+            "field": "event.fault_confirmed",
+            "operator": "eq",
+            "value": true
+          }
+        ]
+      },
+      {
+        "tool_id": "scada.load_shedding",
+        "permitted_actions": ["initiate_controlled_shedding"],
+        "conditions": [
+          {
+            "field": "grid.overload_percentage",
+            "operator": "gte",
+            "value": 95
+          }
+        ]
+      },
+      {
+        "tool_id": "ops.alert_dispatch",
+        "permitted_actions": ["send_alert", "escalate_incident"]
+      }
+    ],
+
+    "decisions": [
+      {
+        "decision_type": "isolate_faulted_segment",
+        "autonomous": true,
+        "thresholds": [
+          {
+            "field": "fault.detection_confidence",
+            "operator": "gte",
+            "value": 0.95
+          }
+        ]
+      },
+      {
+        "decision_type": "initiate_load_shedding",
+        "autonomous": true,
+        "thresholds": [
+          {
+            "field": "grid.overload_percentage",
+            "operator": "gte",
+            "value": 98
+          }
+        ]
+      },
+      {
+        "decision_type": "restore_segment",
+        "autonomous": false,
+        "thresholds": []
+      },
+      {
+        "decision_type": "modify_protection_settings",
+        "autonomous": false,
+        "thresholds": []
+      }
+    ],
+
+    "delegation": {
+      "may_delegate": false
+    }
+  },
+
+  "constraints": [
+    {
+      "id": "no-restoration-without-human-approval",
+      "description": "Agent may not restore a previously isolated segment without explicit human authorization, regardless of connectivity state.",
+      "applies_to": "decision",
+      "on_violation": "deny_and_halt"
+    },
+    {
+      "id": "no-protection-setting-changes",
+      "description": "Agent may not modify relay protection settings or protection coordination parameters under any connectivity condition.",
+      "applies_to": "all_actions",
+      "on_violation": "deny_and_halt"
+    },
+    {
+      "id": "no-cross-substation-actions",
+      "description": "Agent may not issue control commands to any substation other than substation-047.",
+      "applies_to": "tool_invocation",
+      "on_violation": "deny_and_escalate"
+    }
+  ],
+
+  "escalation": [
+    {
+      "trigger": "decision_type == 'restore_segment'",
+      "escalate_to": "grid-operations-center",
+      "timeout": {
+        "seconds": 1800,
+        "on_timeout": "deny"
+      },
+      "priority": "urgent"
+    },
+    {
+      "trigger": "grid.overload_percentage >= 95 AND connectivity.mode == 'connected'",
+      "escalate_to": "grid-operations-center",
+      "timeout": {
+        "seconds": 300,
+        "on_timeout": "approve"
+      },
+      "priority": "immediate"
+    },
+    {
+      "trigger": "constraint_violation",
+      "escalate_to": "grid-operations-center",
+      "timeout": {
+        "seconds": 60,
+        "on_timeout": "deny_and_halt"
+      },
+      "priority": "immediate"
+    }
+  ],
+
+  "connectivity": {
+    "assumed_mode": "connected",
+    "pre_authorization_envelope": {
+      "authorized_decisions": [
+        "isolate_faulted_segment"
+      ],
+      "authorized_data_domains": [
+        "scada.substation_047.*",
+        "grid.event_log"
+      ],
+      "envelope_ttl_seconds": 14400,
+      "on_envelope_expiry": "minimal_safe_actions_only"
+    },
+    "reconnection_behavior": {
+      "sync_audit_log": true,
+      "await_ratification": true
+    }
+  },
+
+  "binding": {
+    "enforcement_mode": "infrastructure",
+    "on_violation": "deny_and_halt",
+    "on_expiry": "escalate",
+    "immutable": true,
+    "audit_required": true
+  }
+}

@@ -1,0 +1,450 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelR2A/adc/spec/adc-v0.1.json",
+  "title": "Agent Delegation Contract",
+  "description": "ADC v0.1 — Working Draft. Formal specification for what an AI agent is authorized to do: what data it may access, what decisions it may make autonomously, what tools it may invoke, under what conditions, and what escalation conditions route decisions to a human or higher authority.",
+  "type": "object",
+
+  "required": [
+    "adc_version",
+    "contract_id",
+    "agent",
+    "principal",
+    "authority",
+    "binding"
+  ],
+
+  "properties": {
+
+    "adc_version": {
+      "type": "string",
+      "description": "Version of the ADC specification this contract conforms to.",
+      "const": "0.1",
+      "examples": ["0.1"]
+    },
+
+    "contract_id": {
+      "type": "string",
+      "format": "uri",
+      "description": "Globally unique identifier for this contract. URI format. Immutable once issued. Changes to contract terms require a new contract_id.",
+      "examples": ["urn:adc:r2advisory:procurement-agent:2026-04-16:v1"]
+    },
+
+    "contract_meta": {
+      "type": "object",
+      "description": "Authorship, versioning, and lifecycle metadata for this contract instance.",
+      "properties": {
+        "issued_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp at which this contract was issued and became evaluable."
+        },
+        "effective_from": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Earliest time at which this contract is valid. Defaults to issued_at if omitted."
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Time at which this contract expires. Behavior on expiry is governed by binding.on_expiry."
+        },
+        "authored_by": {
+          "type": "string",
+          "description": "Identity of the human or system that authored this contract."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the agent's purpose and the intent of this contract."
+        },
+        "labels": {
+          "type": "object",
+          "description": "Arbitrary key-value labels for operational tagging, discovery, and policy grouping.",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+
+    "agent": {
+      "type": "object",
+      "description": "Identity and classification of the agent this contract governs.",
+      "required": ["agent_id", "agent_type"],
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "description": "Unique identifier for this agent instance. Must be resolvable in the agent registry of the evaluating runtime."
+        },
+        "agent_type": {
+          "type": "string",
+          "description": "Classification of the agent.",
+          "enum": [
+            "ai_assistant",
+            "planning_agent",
+            "task_agent",
+            "data_agent",
+            "infrastructure_agent",
+            "autonomous_system",
+            "composite_agent",
+            "human_node"
+          ]
+        },
+        "agent_version": {
+          "type": "string",
+          "description": "Version identifier of the agent implementation bound to this contract."
+        },
+        "spawned_by": {
+          "type": "string",
+          "description": "agent_id of the parent agent that spawned this agent, if applicable. Establishes the delegation lineage."
+        },
+        "parent_contract_id": {
+          "type": "string",
+          "format": "uri",
+          "description": "contract_id of the parent ADC under which this agent was spawned. Authority in this contract must be a subset of the parent contract's authority."
+        }
+      }
+    },
+
+    "principal": {
+      "type": "object",
+      "description": "The authorizing party whose intent this contract expresses. The principal is accountable for the agent's authorized actions.",
+      "required": ["principal_id", "principal_type"],
+      "properties": {
+        "principal_id": {
+          "type": "string",
+          "description": "Unique identifier for the principal. For human principals: an identity resolvable in the organization's IAM system. For agent principals: the agent_id of the delegating agent."
+        },
+        "principal_type": {
+          "type": "string",
+          "enum": ["human", "agent", "organization", "system"],
+          "description": "Classification of the principal."
+        },
+        "delegation_depth": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of delegation hops from the root human principal. L0 = human. L1 = directly delegated by human. L2 = delegated by L1 agent. Runtimes may enforce maximum delegation depth policies."
+        }
+      }
+    },
+
+    "authority": {
+      "type": "object",
+      "description": "The complete scope of what this agent is authorized to do. Everything not explicitly permitted is denied by default.",
+      "properties": {
+
+        "data_access": {
+          "type": "array",
+          "description": "Data domains the agent is authorized to access, with classification ceiling and permitted operations.",
+          "items": {
+            "type": "object",
+            "required": ["domain", "classification_ceiling", "operations"],
+            "properties": {
+              "domain": {
+                "type": "string",
+                "description": "Identifier for the data domain. May use glob patterns (e.g., 'client.*', 'finance.payroll')."
+              },
+              "classification_ceiling": {
+                "type": "string",
+                "description": "Maximum data classification level this agent may access within this domain.",
+                "enum": ["public", "internal", "confidential", "restricted", "secret", "top_secret"]
+              },
+              "operations": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": ["read", "write", "delete", "aggregate", "export", "execute"]
+                },
+                "description": "Permitted operations on this data domain."
+              },
+              "conditions": {
+                "type": "array",
+                "description": "Additional conditions that must be satisfied for access to this domain.",
+                "items": { "$ref": "#/$defs/condition" }
+              }
+            }
+          }
+        },
+
+        "tools": {
+          "type": "array",
+          "description": "Tools and APIs the agent is authorized to invoke.",
+          "items": {
+            "type": "object",
+            "required": ["tool_id", "permitted_actions"],
+            "properties": {
+              "tool_id": {
+                "type": "string",
+                "description": "Identifier for the tool or API. Should match the tool registry of the execution environment."
+              },
+              "permitted_actions": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Specific actions or methods within this tool the agent may invoke."
+              },
+              "rate_limit": {
+                "type": "object",
+                "description": "Optional rate limit on tool invocation.",
+                "properties": {
+                  "max_calls": { "type": "integer" },
+                  "window_seconds": { "type": "integer" }
+                }
+              },
+              "conditions": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/condition" }
+              }
+            }
+          }
+        },
+
+        "decisions": {
+          "type": "array",
+          "description": "Decision types the agent is authorized to make autonomously, with optional thresholds.",
+          "items": {
+            "type": "object",
+            "required": ["decision_type", "autonomous"],
+            "properties": {
+              "decision_type": {
+                "type": "string",
+                "description": "Identifier for the class of decision. Examples: 'approve_purchase_order', 'deploy_configuration', 'send_external_communication'."
+              },
+              "autonomous": {
+                "type": "boolean",
+                "description": "Whether the agent may execute this decision without human review."
+              },
+              "thresholds": {
+                "type": "array",
+                "description": "Numeric or categorical thresholds that bound autonomous authority for this decision type.",
+                "items": {
+                  "type": "object",
+                  "required": ["field", "operator", "value"],
+                  "properties": {
+                    "field": { "type": "string" },
+                    "operator": {
+                      "type": "string",
+                      "enum": ["lt", "lte", "gt", "gte", "eq", "neq", "in", "not_in"]
+                    },
+                    "value": {}
+                  }
+                }
+              },
+              "conditions": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/condition" }
+              }
+            }
+          }
+        },
+
+        "delegation": {
+          "type": "object",
+          "description": "Whether and how this agent may delegate authority to sub-agents.",
+          "properties": {
+            "may_delegate": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether this agent is permitted to spawn sub-agents and issue them ADCs. Default: false."
+            },
+            "max_delegation_depth": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum number of further delegation hops permitted below this agent."
+            },
+            "delegation_constraints": {
+              "type": "string",
+              "description": "Narrative or reference to constraints that apply to any ADCs this agent issues. Sub-agent ADCs must be a strict subset of this contract's authority.",
+              "examples": ["Sub-agent ADCs may not exceed classification_ceiling: confidential on any data domain."]
+            }
+          }
+        }
+      }
+    },
+
+    "constraints": {
+      "type": "array",
+      "description": "Explicit prohibitions and boundaries that apply across the entire contract, regardless of what is permitted in authority. Constraints override permissions.",
+      "items": { "$ref": "#/$defs/constraint" }
+    },
+
+    "escalation": {
+      "type": "array",
+      "description": "Conditions under which the agent must suspend autonomous action and route the decision to a human or higher-authority principal.",
+      "items": {
+        "type": "object",
+        "required": ["trigger", "escalate_to", "timeout"],
+        "properties": {
+          "trigger": {
+            "type": "string",
+            "description": "Description of the condition that activates this escalation rule. May reference decision_type, data domain, threshold breach, or explicit flag."
+          },
+          "escalate_to": {
+            "type": "string",
+            "description": "principal_id or role identifier of the human node or authority to receive this escalation."
+          },
+          "timeout": {
+            "type": "object",
+            "required": ["seconds", "on_timeout"],
+            "description": "Defines how long to wait for a human response and what to do if none arrives.",
+            "properties": {
+              "seconds": {
+                "type": "integer",
+                "description": "Maximum wait time in seconds before timeout behavior applies."
+              },
+              "on_timeout": {
+                "type": "string",
+                "enum": ["deny", "approve", "escalate_further", "halt"],
+                "description": "Action to take if the escalation is not resolved within the timeout window."
+              }
+            }
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["routine", "urgent", "immediate"],
+            "description": "Urgency classification for this escalation, informing delivery priority to the human node."
+          }
+        }
+      }
+    },
+
+    "connectivity": {
+      "type": "object",
+      "description": "Defines agent authority behavior under varying connectivity conditions. For fully connected enterprise deployments, omit this block or set mode to 'connected'. For disconnected, degraded, or contested operation contexts, this block is required.",
+      "properties": {
+        "assumed_mode": {
+          "type": "string",
+          "enum": ["connected", "degraded", "disconnected", "contested"],
+          "default": "connected",
+          "description": "The connectivity condition this contract assumes at runtime. Enterprise default: connected. Disconnected/contested profiles require explicit configuration."
+        },
+        "pre_authorization_envelope": {
+          "type": "object",
+          "description": "Decisions the agent is pre-authorized to make autonomously when operating disconnected or under contested conditions, without real-time evaluation by an authoritative runtime. This envelope is validated and cryptographically signed at contract issuance. WORKING DRAFT: normative specification for this field is in progress. See docs/profiles/disconnected-operations.md.",
+          "properties": {
+            "authorized_decisions": {
+              "type": "array",
+              "description": "Decision types from authority.decisions that remain authorized in disconnected mode.",
+              "items": { "type": "string" }
+            },
+            "authorized_data_domains": {
+              "type": "array",
+              "description": "Data domains from authority.data_access that remain accessible in disconnected mode.",
+              "items": { "type": "string" }
+            },
+            "envelope_ttl_seconds": {
+              "type": "integer",
+              "description": "Maximum time in seconds this pre-authorization envelope is valid without re-validation from the authoritative runtime."
+            },
+            "on_envelope_expiry": {
+              "type": "string",
+              "enum": ["halt", "minimal_safe_actions_only", "deny_new_decisions"],
+              "description": "Behavior when the pre-authorization envelope TTL expires without reconnection."
+            }
+          }
+        },
+        "reconnection_behavior": {
+          "type": "object",
+          "description": "Defines state reconciliation behavior when connectivity is restored.",
+          "properties": {
+            "sync_audit_log": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether to transmit a complete audit log of decisions made during disconnected operation upon reconnection."
+            },
+            "await_ratification": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether the agent must pause new decision-making upon reconnection until the authoritative runtime has reviewed and ratified the disconnected operation log."
+            }
+          }
+        }
+      }
+    },
+
+    "binding": {
+      "type": "object",
+      "description": "Enforcement semantics and lifecycle behavior for this contract.",
+      "required": ["enforcement_mode"],
+      "properties": {
+        "enforcement_mode": {
+          "type": "string",
+          "enum": ["native", "overseer", "infrastructure"],
+          "description": "How this contract is enforced. native: agent self-governs and calls the evaluation runtime. overseer: an overseer agent validates outputs against this contract. infrastructure: contract is enforced at the infrastructure boundary regardless of agent awareness."
+        },
+        "on_violation": {
+          "type": "string",
+          "enum": ["deny", "deny_and_escalate", "deny_and_halt", "log_only"],
+          "default": "deny",
+          "description": "Default action when an agent action violates this contract and no more specific rule applies."
+        },
+        "on_expiry": {
+          "type": "string",
+          "enum": ["deny_all", "escalate", "renew_request"],
+          "default": "deny_all",
+          "description": "Behavior when contract_meta.expires_at is reached."
+        },
+        "immutable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether this contract is immutable once effective. Recommended: true. Changes require issuing a new contract_id."
+        },
+        "audit_required": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether every evaluation event against this contract must be recorded in the audit log."
+        }
+      }
+    }
+  },
+
+  "$defs": {
+
+    "condition": {
+      "type": "object",
+      "description": "A contextual condition that must be satisfied for a permission to apply.",
+      "required": ["field", "operator", "value"],
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "The context field being evaluated. Examples: 'request.time_of_day', 'request.source_ip', 'agent.session_duration_seconds'."
+        },
+        "operator": {
+          "type": "string",
+          "enum": ["eq", "neq", "lt", "lte", "gt", "gte", "in", "not_in", "matches"]
+        },
+        "value": {
+          "description": "The value to evaluate the field against."
+        }
+      }
+    },
+
+    "constraint": {
+      "type": "object",
+      "description": "An explicit prohibition that applies regardless of what is permitted elsewhere in this contract. Constraints are evaluated before permissions.",
+      "required": ["id", "description", "applies_to"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this constraint within the contract."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable statement of the prohibition."
+        },
+        "applies_to": {
+          "type": "string",
+          "enum": ["all_actions", "data_access", "tool_invocation", "decision", "delegation"],
+          "description": "The category of agent action this constraint governs."
+        },
+        "rule": {
+          "type": "string",
+          "description": "Machine-evaluable expression of the constraint. Syntax is runtime-defined. For OPA-based runtimes, this may be a Rego fragment reference."
+        },
+        "on_violation": {
+          "type": "string",
+          "enum": ["deny", "deny_and_escalate", "deny_and_halt", "log_only"],
+          "description": "Action to take when this specific constraint is violated. Overrides binding.on_violation for this constraint."
+        }
+      }
+    }
+
+  }
+}
