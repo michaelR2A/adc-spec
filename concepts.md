@@ -1,7 +1,7 @@
 # ADC Concepts and Primitives
 
 **ADC Specification — v0.1 Working Draft**
-R2 Advisory LLC | April 2026 | Apache 2.0
+R2 Advisory | April 2026 | Apache 2.0
 
 ---
 
@@ -21,19 +21,38 @@ ADC is not:
 
 ## 2. Intellectual Lineage
 
-ADC formalizes concepts that C2 (Command and Control) doctrine has applied to human-operated systems for decades, now expressed as machine-readable contracts for autonomous agents.
+ADC draws from two distinct bodies of work. Understanding the lineage explains why the spec is structured the way it is.
 
-| C2 Concept | ADC Equivalent |
+---
+
+### 2.1 Academic Research: Intelligent AI Delegation
+
+The foundational conceptual framework derives from **Tomasev, Franklin & Osindero (2026), "Intelligent AI Delegation," Google DeepMind** ([arXiv:2602.11865](https://arxiv.org/abs/2602.11865)).
+
+That work defines intelligent delegation as a sequence of decisions involving task allocation that incorporates transfer of authority, responsibility, accountability, clarity of roles and boundaries, and trust mechanisms between parties. It identifies why heuristic-based delegation fails at scale and what properties a rigorous delegation system must possess — specifically: the principal-agent problem in AI systems, span-of-control limits on delegators, authority gradient risks, zone-of-indifference compliance failures, privilege attenuation in delegation chains, and the requirement for verifiable, auditable task completion.
+
+ADC is the machine-readable contract language that operationalizes these properties at the per-agent, per-action level.
+
+---
+
+### 2.2 Operational Doctrine: Command and Control
+
+ADC's connectivity model and disconnected authority semantics derive from **C2 (Command and Control) doctrine** developed across decades of defense and national security systems design.
+
+C2 doctrine has long addressed the core problem ADC formalizes: how does an autonomous actor maintain effective, accountable operation when it cannot reach the authoritative command element? The answers, developed through operational necessity, translate directly to machine-readable contract semantics.
+
+| C2 Concept | ADC Implementation |
 |---|---|
-| Delegation of Authority | The ADC delegation chain: authority flows downward and can only be constrained, never amplified, at each level |
-| Rules of Engagement | The ADC constraint set: what the agent may and may not do under what conditions |
-| Commander's Intent | The root intent contract: the principal's stated objective governing the entire delegation chain |
-| PACE Communications | The connectivity model: connected, degraded, disconnected, contested — each with defined authority behavior |
-| Pre-Delegated Authority | The pre-authorization envelope: decisions cleared for autonomous execution before contact with the authoritative runtime is lost |
-| Mission-Type Orders | Pattern 1 (native ADC consumption): the agent understands its full authority envelope and self-governs within it |
-| Positive Control vs. Procedural Control | The distinction between connected operation (runtime makes real-time decisions) and disconnected operation (agent operates within pre-cleared envelope) |
+| Delegation of Authority | Delegation chain: authority flows downward, can only be constrained, never amplified |
+| Rules of Engagement | `constraints` block: explicit prohibitions that override all permissions |
+| Commander's Intent | Root intent contract: the principal's objective bounding the entire delegation chain |
+| PACE (Primary/Alternate/Contingency/Emergency) | `connectivity.assumed_mode`: connected, degraded, disconnected, contested |
+| Pre-Delegated Authority | `connectivity.pre_authorization_envelope`: decisions cleared before contact loss |
+| Positive Control vs. Procedural Control | Connected mode (runtime evaluates real-time) vs. disconnected mode (pre-cleared envelope governs) |
+| Reconstitution and ratification | `connectivity.reconnection_behavior.await_ratification`: post-reconnection review |
+| Mission-Type Orders | Pattern 1 (native consumption): agent self-governs within its full authority envelope |
 
-This lineage is not analogy. The problems are structurally identical at different layers of abstraction. ADC brings machine-readable precision to authority models that C2 doctrine has long handled through human interpretation.
+These are not analogies. The problems are structurally identical at different layers of abstraction. ADC brings machine-readable precision to authority models C2 doctrine has long handled through human interpretation.
 
 ---
 

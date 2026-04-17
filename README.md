@@ -2,7 +2,7 @@
 
 **Open specification for AI agent authorization — define what agents may do, decide, and escalate.**
 
-`v0.1 Working Draft` | Apache 2.0 | R2 Advisory LLC
+`v0.1 Working Draft` | Apache 2.0 | R2 Advisory
 
 ---
 
@@ -41,18 +41,70 @@ ADC answers that question. It provides a contract language for expressing agent 
 
 ## Intellectual Lineage
 
-ADC formalizes concepts that **C2 (Command and Control) doctrine** has applied to human-operated systems for decades, now expressed as machine-readable contracts for autonomous agents.
+ADC draws from three distinct bodies of work. Each contributes a layer of the specification.
 
-| C2 Concept | ADC Equivalent |
+---
+
+### Layer 1: Academic Research — Intelligent AI Delegation
+
+The foundational conceptual framework for ADC derives from **Tomasev, Franklin & Osindero (2026), "Intelligent AI Delegation," Google DeepMind** ([arXiv:2602.11865](https://arxiv.org/abs/2602.11865)).
+
+That paper defines intelligent delegation as a sequence of decisions involving task allocation that incorporates transfer of authority, responsibility, accountability, clarity of roles and boundaries, clarity of intent, and trust mechanisms between parties. It establishes the theoretical basis for why ad-hoc, heuristic-based delegation frameworks fail at scale and what properties a rigorous delegation system must possess.
+
+Key concepts from that work that directly shape ADC:
+
+| Concept (Tomasev et al.) | ADC Implementation |
 |---|---|
-| Delegation of Authority | ADC delegation chain: authority constrained downward at every level |
-| Rules of Engagement | ADC constraint set: explicit prohibitions that override permissions |
-| Commander's Intent | Root intent contract: principal's objective governing the delegation chain |
-| PACE Communications | Connectivity model: connected, degraded, disconnected, contested |
-| Pre-Delegated Authority | Pre-authorization envelope: decisions cleared before contact is lost |
-| Positive / Procedural Control | Connected vs. disconnected operation modes |
+| Principal-agent problem: misaligned incentives between delegator and delegatee | `principal` block: explicit accountability ownership; authority is scoped, not presumed |
+| Span of control: limits on how many agents a delegator can supervise reliably | `authority.delegation.max_delegation_depth`: bounded delegation chains; runtime span-of-control enforcement |
+| Authority gradient: capability/authority disparities that impede communication and cause errors | `agent.agent_type` classification + `constraints` block: challenge rights, clarification triggers, sycophancy mitigation |
+| Zone of indifference: range of instructions executed without critical scrutiny | `constraints` as hard overrides; `escalation` conditions that fire before zone-of-indifference compliance |
+| Permission handling via privilege attenuation: sub-delegatees receive strict subsets only | Delegation invariant: authority can only be constrained downward, never amplified |
+| Trust calibration: trust is contextual, not global; must be earned per task class | `binding.enforcement_mode` + audit trail: trust is evaluated per contract instance, not per agent globally |
+| Verifiable task completion: outcomes must be formally closeable, not assumed | `binding.audit_required` + immutable contract IDs: every evaluation event creates a non-repudiable record |
+| Adaptive coordination: static execution plans are insufficient for high-uncertainty environments | `escalation` with `on_timeout` behavior + `connectivity` model: defined fallback for every failure mode |
 
-This is not analogy. The problems are structurally identical at different layers of abstraction. ADC brings machine-readable precision to authority models C2 doctrine has long handled through human interpretation.
+---
+
+### Layer 2: Operational Doctrine — Command and Control
+
+ADC's **connectivity model and disconnected authority semantics** derive from **C2 (Command and Control) doctrine** developed across decades of defense and national security systems design.
+
+C2 doctrine has long addressed the problem ADC's connectivity model formalizes: how does an autonomous actor maintain effective, accountable operation when it cannot reach the authoritative command element? The answers, developed through operational necessity, translate directly to machine-readable contract semantics.
+
+| C2 Concept | ADC Implementation |
+|---|---|
+| Delegation of Authority | Delegation chain: authority flows downward and can only be constrained, never amplified |
+| Rules of Engagement | `constraints` block: explicit prohibitions that override permissions regardless of authority scope |
+| Commander's Intent | Root intent contract: the principal's stated objective that bounds the entire delegation chain |
+| PACE (Primary/Alternate/Contingency/Emergency) communications | `connectivity.assumed_mode`: connected, degraded, disconnected, contested |
+| Pre-Delegated Authority | `connectivity.pre_authorization_envelope`: decisions cleared for autonomous execution before contact loss |
+| Positive Control vs. Procedural Control | Connected mode (runtime evaluates every decision) vs. disconnected mode (agent operates within pre-cleared envelope) |
+| Reconstitution and ratification on reconnection | `connectivity.reconnection_behavior.await_ratification`: post-reconnection review of disconnected operation log |
+
+These are not analogies. The problems are structurally identical at different layers of abstraction. C2 doctrine developed these authority models through operational necessity in human-operated systems. ADC brings machine-readable precision to the same models for autonomous agents.
+
+---
+
+### Layer 3: Applied Security Research — OWASP GenAI Data Security
+
+ADC's **constraint semantics, data access control model, and violation behavior** are informed by the **OWASP GenAI Data Security Risks and Mitigations 2026** (v1.0, March 2026), which catalogs the attack surface created by AI agents operating against enterprise data systems.
+
+That document identifies the systematic ways AI agents break existing data protection assumptions: agents access data at volumes and velocities that exceed human-auditable thresholds; agent identity is ephemeral and difficult to bind to accountability chains; and agents operating through MCP or API integrations can invoke data operations far beyond any single session's stated purpose.
+
+Key threat patterns from OWASP GenAI that ADC directly addresses:
+
+| OWASP GenAI Threat | ADC Mitigation |
+|---|---|
+| Agents accessing data beyond task scope | `authority.data_access[].domain` with explicit classification ceiling and permitted operations per domain |
+| Absence of authorization model for MCP tool invocations | `authority.tools[].permitted_actions`: explicit allowlist of permitted operations per tool, not binary access |
+| Agent identity is ephemeral; audit trail is operationally infeasible at AI event volume | `binding.audit_required` + immutable `contract_id`: every evaluation event captures agent identity, contract version, and decision |
+| Indirect prompt injection enabling agents to exceed authorized scope | `constraints` block as hard overrides evaluated before authority; `on_violation: deny_and_halt` for critical constraints |
+| Sub-agent authority inheritance: spawned agents inherit more access than the task requires | Delegation invariant: authority is constrained downward at every level; `agent.parent_contract_id` links lineage |
+| Data access leaving an unmanageable audit trail at AI event velocity | `binding.audit_required` + SIEM-compatible JSON Lines export: structured audit at enforcement-layer rather than log-review layer |
+| Retrieval-augmented agents accessing high-classification data without policy gates | `data_access[].classification_ceiling`: hard ceiling per domain enforced at contract evaluation time |
+
+OWASP GenAI establishes the threat model. ADC provides the contract language for expressing and enforcing mitigations at the agent authorization layer, upstream of where existing DLP, DSPM, and IAM controls operate.
 
 ---
 
@@ -233,7 +285,7 @@ The ADC specification is open. Runtimes built on ADC may be open or proprietary.
 
 ## Maintainer
 
-**R2 Advisory LLC**
+**R2 Advisory**
 Michael Ruiz, Founder and Managing Director
 [r2advisory.com](https://r2advisory.com)
 
